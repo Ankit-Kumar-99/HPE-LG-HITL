@@ -4,7 +4,21 @@ This repository demonstrates an **end-to-end LangGraph workflow** for an order m
 The system intelligently routes user intent to the correct workflow (**Place Order, Track Order, Cancel Order**) and pauses execution whenever human confirmation or input is required.
 
 ---
+## 🚀 Concepts to know 
 
+* **LangGraph – Framework for building stateful, graph-based LLM workflows**
+* **StateGraph – Defines nodes and edges operating on a shared mutable state.**
+* **Typed State (TypedDict) – Enforces a strict schema for workflow state.**
+* **LLM Tool Calling – Forces the LLM to choose an action instead of free text.**
+* **Sub-Graphs – Independent graphs embedded as nodes inside a parent graph.**
+* **Interrupt (HITL) – Pauses execution and waits for human input.**
+* **Checkpointer – Stores intermediate state to support pause and resume.**
+* **MemorySaver – In-memory checkpointer used for this POC.**
+* **Thread ID – Unique identifier to resume the correct workflow instance.**
+* **Conditional Edges – Dynamic branching based on state values.**
+* **Messages Aggregation – Automatically accumulates messages across nodes.**
+  
+---
 ## 🚀 Key Features
 
 * **Intent routing using LLM tool calling**
@@ -200,15 +214,6 @@ The system will automatically:
 * Request confirmation
 * Cancel order
 
----
-
-## 🔮 Future Enhancements
-
-* Persistent storage (Redis / SQLite)
-* UI integration
-* Multi-order support
-* Tool confidence scoring
-* Observability with LangSmith
 
 ---
 
@@ -221,12 +226,3 @@ This project is intended to:
 * Serve as a **template for agentic workflows**
 
 ---
-
-If you want, I can also:
-
-* Add **sequence diagrams**
-* Create a **minimal version**
-* Convert this into a **blog-style explanation**
-* Add **tests or CI structure**
-
-Just tell me 👍

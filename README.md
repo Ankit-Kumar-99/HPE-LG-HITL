@@ -1,228 +1,702 @@
-# 🧠 LangGraph Human-in-the-Loop Order Management POC
+# HPE-LG-HITL
 
-This repository demonstrates an **end-to-end LangGraph workflow** for an order management system with **Human-in-the-Loop (HITL)** support.
-The system intelligently routes user intent to the correct workflow (**Place Order, Track Order, Cancel Order**) and pauses execution whenever human confirmation or input is required.
+Human-in-the-Loop (HITL) workflow orchestration using **LangGraph** for:
 
----
-## 🚀 Concepts to know 
-
-* **LangGraph – Framework for building stateful, graph-based LLM workflows**
-* **StateGraph – Defines nodes and edges operating on a shared mutable state.**
-* **Typed State (TypedDict) – Enforces a strict schema for workflow state.**
-* **LLM Tool Calling – Forces the LLM to choose an action instead of free text.**
-* **Sub-Graphs – Independent graphs embedded as nodes inside a parent graph.**
-* **Interrupt (HITL) – Pauses execution and waits for human input.**
-* **Checkpointer – Stores intermediate state to support pause and resume.**
-* **MemorySaver – In-memory checkpointer used for this POC.**
-* **Thread ID – Unique identifier to resume the correct workflow instance.**
-* **Conditional Edges – Dynamic branching based on state values.**
-* **Messages Aggregation – Automatically accumulates messages across nodes.**
-  
----
-## 🚀 Key Features
-
-* **Intent routing using LLM tool calling**
-* **Stateful workflows using LangGraph**
-* **Human-in-the-Loop (pause & resume) via interrupts**
-* **Thread-safe execution using MemorySaver**
-* **Modular, extensible graph design**
-* **Typed state management using `TypedDict`**
+* CSR (Customer Self Repair)
+* Onsite Service Preparation
+* Status Tracking
+* Tool-based intelligent routing using LLM
 
 ---
 
-## 🧩 High-Level Architecture
+# Project Structure
 
-```
-User Input
-   ↓
-Tool Router (LLM)
-   ↓
-──────────────────────────────
-│ Place Order | Track | Cancel│
-──────────────────────────────
-   ↓
-HITL Interrupts (if required)
-   ↓
-Final State Output
-```
-
-* A **router LLM** selects exactly one tool.
-* Each tool is implemented as an **independent LangGraph sub-graph**.
-* **Human input** is requested using LangGraph `interrupt`.
-* Execution resumes using the same `thread_id`.
-
----
-
-## 📂 Project Structure
-
-```
-.
-├── main.py                  # CLI entry point + HITL loop
-├── orch.py                  # Orchestrator graph & tool routing
-├── state.py                 # Global OrderState definition
+```text
+HPE-LG-HITL
+│
+├── app/
+│   └── main.py
 │
 ├── graph/
-│   ├── tools/
-│   │   ├── place_order.py   # Place order workflow
-│   │   ├── track_order.py   # Track order workflow
-│   │   └── cancel_order.py  # Cancel order workflow
-│   │
-│   ├── tools_llm/
-│   │   ├── lc_tools.py      # Tool schemas for LLM routing
-│   │   ├── product_tool.py
-│   │   └── product_validate.py
-│   │
-│   └── orch.py              # Root graph compilation
+│   ├── orch.py
+│   ├── csr_flow.py
+│   ├── onsite_flow.py
+│   ├── track_status.py
+│   └── product_recom.py
 │
-└── llm/
-    └── groq.py              # LLM configuration
+├── llm/
+│   └── groq.py
+│
+├── state/
+│   └── state.py
+│
+├── tools/
+│   ├── router_tools.py
+│   ├── geo_service.py
+│   ├── inventory_service.py
+│   └── onsite_service.py
+│
+├── .env
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## 🧠 OrderState
+# High Level Architecture
 
-All workflows share a common typed state:
+```text
+                USER INPUT
+                     │
+                     ▼
+              graph/orch.py
+                     │
+         ┌───────────┼───────────┐
+         ▼           ▼           ▼
+      CSR FLOW    ONSITE      TRACK
+                  FLOW        STATUS
+```
+
+The orchestrator uses an LLM with tools to determine which workflow should execute.
+
+---
+
+# Supported Workflows
+
+| Workflow     | Purpose                             |
+| ------------ | ----------------------------------- |
+| CSR Flow     | Customer Self Repair order handling |
+| Onsite Flow  | Engineer onsite scheduling          |
+| Track Status | Track order/shipment/service        |
+
+---
+
+# Technologies Used
+
+* LangGraph
+* LangChain
+* Groq LLM
+* Python
+* HITL Interrupts
+* Stateful Graph Execution
+
+---
+
+# Environment Setup
+
+## 1. Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+Activate:
+
+```bash
+source venv/bin/activate
+```
+
+---
+
+## 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 3. Add Environment Variables
+
+Create `.env`
+
+```env
+GROQ_API_KEY=your_key_here
+```
+
+---
+
+# Run Application
+
+```bash
+python -m app.main
+```
+
+---
+
+# Router Workflow (`graph/orch.py`)
+
+The orchestrator decides which workflow to execute.
+
+## Supported Router Tools
+
+### CSR Tool
+
+Triggered when user mentions:
+
+* self repair
+* csr
+* spare replacement
+* diy repair
+* repair on my own
+* part shipment
+
+---
+
+### Onsite Tool
+
+Triggered when user mentions:
+
+* onsite
+* engineer visit
+* technician
+* field support
+* hardware issue
+
+---
+
+### Track Status Tool
+
+Triggered when user mentions:
+
+* track order
+* shipment status
+* engineer status
+* csr tracking
+
+---
+
+# CSR FLOW (`graph/csr_flow.py`)
+
+---
+
+# CSR Workflow Overview
+
+```text
+1. Mandatory Field Validation
+2. Geo Eligibility Validation
+3. CSR Eligibility Summary
+4. Part Selection (HITL)
+5. Inventory Validation
+6. Final Confirmation (HITL)
+7. Place CSR Order
+```
+
+---
+
+# CSR Detailed Flow
+
+---
+
+## STEP 1 — Mandatory Field Validation
+
+### Required Fields
+
+| Field         |
+| ------------- |
+| customer_name |
+| address       |
+| geo           |
+| device_type   |
+
+---
+
+## Trigger Condition
+
+If any field is missing:
 
 ```python
-class OrderState(TypedDict):
-    input: str
-    selected_tool: str | None
-    confirmation: str | None
-    product: str | None
-    product_valid: bool | None
-    size: str | None
-    quantity: int | None
-    order_id: str | None
-    order_status: str | None
-    messages: list[str]
+if missing_fields:
 ```
 
-This ensures:
+### HITL Interrupt Triggered
 
-* Strong schema consistency
-* Predictable state transitions
-* Easy debugging and extension
+System asks user:
 
----
-
-## 🔀 Tool Routing Logic
-
-The router:
-
-* Uses **LLM tool calling**
-* Must select **exactly one tool**
-* Never responds with free text
-
-Supported tools:
-
-* `place_order`
-* `track_order`
-* `cancel_order`
+```text
+Please provide values in format:
+customer_name=Ankit,
+address=Bangalore,
+geo=India,
+device_type=Laptop
+```
 
 ---
 
-## 🧑‍💻 Human-in-the-Loop (HITL)
+## STEP 2 — Geo Validation
 
-HITL is implemented using:
+### Allowed Geographies
+
+```python
+allowed_geos = [
+    "india",
+    "usa",
+    "germany"
+]
+```
+
+---
+
+## Trigger Conditions
+
+### Allowed
+
+```python
+if geo in allowed_geos
+```
+
+Flow continues.
+
+---
+
+### Not Allowed
+
+If geo not supported:
+
+```text
+CSR not allowed in geo
+```
+
+Flow ends.
+
+---
+
+## STEP 3 — CSR Summary
+
+Displays:
+
+* Mandatory validation status
+* Geo validation status
+* CSR eligibility confirmation
+
+---
+
+## STEP 4 — Part Selection (HITL)
+
+### Default Values
+
+```python
+DEFAULT_PART = "PART-123"
+DEFAULT_QUANTITY = 3
+```
+
+---
+
+## HITL Trigger
+
+User sees:
+
+```text
+Suggested Part Details:
+Part Number: PART-123
+Quantity: 3
+```
+
+---
+
+## Supported User Inputs
+
+### Accept Defaults
+
+```text
+accept
+```
+
+Triggers:
+
+```python
+part_number = PART-123
+quantity = 3
+```
+
+---
+
+### Custom Input
+
+```text
+part_number=PART-001, quantity=2
+```
+
+---
+
+## Invalid Format Trigger
+
+If parsing fails:
+
+```text
+Invalid format.
+Please enter:
+part_number=PART-001, quantity=2
+```
+
+---
+
+# STEP 5 — Inventory Validation
+
+## Mock Inventory
+
+```python
+available_inventory = {
+    "PART-123": 10,
+    "PART-001": 5,
+    "PART-555": 0
+}
+```
+
+---
+
+## Conditions
+
+### Inventory Available
+
+```python
+available_qty >= quantity
+```
+
+Flow continues.
+
+---
+
+### Inventory Unavailable
+
+```text
+Insufficient inventory
+```
+
+Flow ends.
+
+---
+
+# STEP 6 — Final Confirmation (HITL)
+
+## Trigger
+
+System asks:
+
+```text
+Confirm CSR Order?
+(yes/no)
+```
+
+---
+
+## Conditions
+
+### YES
+
+```python
+confirmation == "yes"
+```
+
+Flow continues.
+
+---
+
+### NO
+
+```text
+CSR order cancelled
+```
+
+Flow ends.
+
+---
+
+# STEP 7 — Place CSR Order
+
+Final state:
+
+```python
+order_status = "placed"
+```
+
+System prints:
+
+* Order placed
+* Part number
+* Quantity
+
+---
+
+# ONSITE FLOW (`graph/onsite_flow.py`)
+
+---
+
+# Onsite Workflow Overview
+
+```text
+1. Mandatory Validation
+2. Severity Check
+3. Onsite Eligibility
+4. Delivery Instructions (HITL)
+5. Onsite Preparation
+6. Final Confirmation (HITL)
+```
+
+---
+
+# ONSITE Detailed Flow
+
+---
+
+## STEP 1 — Mandatory Validation
+
+### Required Fields
+
+| Field          |
+| -------------- |
+| customer_name  |
+| address        |
+| contact_number |
+| issue_type     |
+
+---
+
+## HITL Trigger
+
+If missing:
+
+```text
+Please provide:
+customer_name=Ankit,
+address=Bangalore,
+contact_number=9876543210,
+issue_type=Hardware Failure
+```
+
+---
+
+# STEP 2 — Issue Severity Check (HITL)
+
+If severity missing:
+
+```text
+Please provide issue severity:
+(low / medium / high / critical)
+```
+
+---
+
+## Supported Values
+
+| Severity | Result              |
+| -------- | ------------------- |
+| low      | onsite not required |
+| medium   | onsite not required |
+| high     | onsite required     |
+| critical | onsite required     |
+
+---
+
+# STEP 3 — Onsite Eligibility
+
+## Conditions
+
+### High/Critical
+
+```python
+if severity in ["high", "critical"]
+```
+
+Flow continues.
+
+---
+
+### Low/Medium
+
+```text
+Onsite visit not required
+```
+
+Flow ends.
+
+---
+
+# STEP 4 — Delivery Instructions (HITL)
+
+System asks:
+
+```text
+Please provide delivery/entry instructions
+```
+
+Examples:
+
+* Gate pass required
+* Call before arrival
+* Apartment security approval needed
+
+---
+
+# STEP 5 — Prepare Onsite
+
+Mock preparation logic:
+
+* Engineer assigned
+* Visit scheduled
+* Onsite preparation completed
+
+---
+
+# STEP 6 — Final Confirmation (HITL)
+
+System asks:
+
+```text
+Do you confirm the onsite visit? (yes/no)
+```
+
+---
+
+## Conditions
+
+### YES
+
+Flow ends successfully.
+
+---
+
+### NO
+
+Onsite visit cancelled.
+
+---
+
+# HITL (Human-in-the-Loop)
+
+The project heavily uses:
 
 ```python
 from langgraph.types import interrupt
 ```
 
-Examples of pauses:
+---
 
-* Product not detected / invalid
-* Quantity missing
-* Order confirmation required
+# HITL Use Cases
 
-The workflow:
-
-1. Pauses execution
-2. Prompts the user
-3. Resumes from the same state using `thread_id`
+| Workflow | Interrupt Purpose     |
+| -------- | --------------------- |
+| CSR      | Missing fields        |
+| CSR      | Part selection        |
+| CSR      | Final confirmation    |
+| ONSITE   | Missing fields        |
+| ONSITE   | Severity              |
+| ONSITE   | Delivery instructions |
+| ONSITE   | Final confirmation    |
 
 ---
 
-## 💾 State Persistence
+# Stateful Execution
 
-This project uses:
+The graph preserves state using:
 
 ```python
-checkpointer = MemorySaver()
+MemorySaver()
 ```
 
-Benefits:
+Thread config:
 
-* Stateful execution across interruptions
-* Thread-safe resume
-* No external storage required (POC-friendly)
+```python
+thread_id = "csr-onsite-demo"
+```
 
 ---
 
-## ▶️ How to Run
-
-1. Install dependencies
-
-```bash
-pip install langgraph langchain
-```
-
-2. Set up LLM credentials (Groq or compatible)
-
-3. Run the application
-
-```bash
-python main.py
-```
-
-4. Interact via CLI:
+# Example CSR Run
 
 ```text
-How can I help you?
-> I want to buy an iphone
+USER:
+self repair
+
+SYSTEM:
+Missing mandatory fields
+
+USER:
+customer_name=Ankit,
+address=Bangalore,
+geo=India,
+device_type=Laptop
+
+SYSTEM:
+Suggested Part Details
+
+USER:
+accept
+
+SYSTEM:
+Confirm CSR Order?
+
+USER:
+yes
+
+FINAL RESULT:
+CSR order placed successfully
 ```
 
-The system will automatically:
+---
 
-* Route intent
-* Ask missing inputs
-* Confirm actions
-* Complete the workflow
+# Example Onsite Run
+
+```text
+USER:
+onsite
+
+SYSTEM:
+Missing mandatory fields
+
+USER:
+customer_name=Ankit,
+address=Bangalore,
+contact_number=9876543210,
+issue_type=Hardware Failure
+
+SYSTEM:
+Please provide issue severity
+
+USER:
+critical
+
+SYSTEM:
+Please provide delivery instructions
+
+USER:
+Call before arrival
+
+SYSTEM:
+Confirm onsite visit?
+
+USER:
+yes
+```
 
 ---
 
-## 🧪 Example Workflows
+# Future Improvements
 
-### Place Order
-
-* Extract product from input
-* Validate product
-* Recommend alternatives if invalid
-* Ask size & quantity
-* Confirm order
-* Process payment
-
-### Track Order
-
-* Ask for order ID
-* Return order status
-
-### Cancel Order
-
-* Ask for order ID
-* Request confirmation
-* Cancel order
-
+* Real inventory APIs
+* Real geo validation APIs
+* Database persistence
+* Authentication
+* Multi-agent architecture
+* Retry workflows
+* SLA calculations
+* Ticket creation
+* Email/SMS notifications
+* UI dashboard
+* LangSmith tracing
 
 ---
 
-## 📌 Purpose of This POC
+# Key Concepts Demonstrated
 
-This project is intended to:
-
-* Demonstrate **LangGraph orchestration patterns**
-* Showcase **HITL design in production-like flows**
-* Serve as a **template for agentic workflows**
+* LangGraph orchestration
+* Stateful execution
+* Conditional routing
+* Interrupt-based HITL
+* Tool calling
+* Multi-workflow orchestration
+* Dynamic branching
+* Validation pipelines
 
 ---
+

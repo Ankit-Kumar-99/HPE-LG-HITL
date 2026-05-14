@@ -1,81 +1,180 @@
 from graph.orch import graph
-from langgraph.types import Command
 
-thread_id = "demo-1"
 
-config = {"configurable": {"thread_id": thread_id}}
+# -------------------------------------------------
+# THREAD CONFIG
+# -------------------------------------------------
 
-def pretty_print_result(state: dict):
-    tool = state.get("selected_tool")
+thread_id = "csr-onsite-demo"
 
-    print("\n========== WORKFLOW RESULT ==========")
+config = {
+    "configurable": {
+        "thread_id": thread_id
+    }
+}
+# -------------------------------------------------
+# INITIAL USER INPUT
+# -------------------------------------------------
 
-    # ---------------- PLACE ORDER ----------------
-    if tool == "place_order":
-        if state.get("confirmation") != "yes":
-            print("❌ Order was not placed.")
-            return
+user_input = input("How can I help you? ")
 
-        print("🛒 ORDER PLACED SUCCESSFULLY")
-        print(f"📦 Product   : {state.get('product')}")
-        print(f"📐 Size      : {state.get('size')}")
-        print(f"🔢 Quantity  : {state.get('quantity')}")
-        print("💳 Payment   : Success")
+initial_state = {
+    "input": user_input,
+    "messages": []
+}
 
-    # ---------------- TRACK ORDER ----------------
-    elif tool == "track_order":
 
-        print("📍 TRACK ORDER RESULT")
-        print(f"🆔 Order ID  : {state.get('order_id')}")
-        print(f"📦 Status    : {state.get('order_status')}")
+# -------------------------------------------------
+# INITIAL GRAPH INVOCATION
+# -------------------------------------------------
 
-    # ---------------- CANCEL ORDER ----------------
-    elif tool == "cancel_order":
-        if state.get("confirmation") != "yes":
-            print("❌ Order cancellation aborted.")
-            return
+result = graph.invoke(
+    initial_state,
+    config=config
+)
 
-        print("🚫 ORDER CANCELLED")
-        print(f"🆔 Order ID  : {state.get('order_id')}")
 
-    else:
-        print("⚠️ Unknown workflow executed.")
+# -------------------------------------------------
+# HITL LOOP
+# -------------------------------------------------
 
-    print("====================================\n")
-
-# --- Step 1: Start workflow ---
-print("---- START ----")
-text=input("How can i help you? ")
-initial_input = {"input": text, "messages": []}
-
-result = graph.invoke(initial_input, config=config)
-# print(result)
-
-# --- Step 2: HITL loop (pause/resume for human input) ---
 while "__interrupt__" in result:
-    # Ask user for input
-    prompt = result["__interrupt__"][0].value
-    user_input = input(f"[HITL] {prompt} ")
+
+    interrupt_data = result["__interrupt__"][0]
+
+    print("\nSYSTEM:")
+    print(interrupt_data.value)
+
+    user_reply = input("\nUSER: ")
 
     state_update = {}
-    if "product" in prompt.lower():
-        clean = user_input.strip().lower()
 
-        state_update["product"] = clean
-        # state_update["last_product"] = clean_product
+    interrupt_text = interrupt_data.value.lower()
 
-        
-    elif "quantity" in prompt.lower():
-        state_update["quantity"] = int(user_input)
+    # -------------------------------------------------
+    # MANDATORY FIELD INPUTS
+    # -------------------------------------------------
+
+    if "missing mandatory fields" in interrupt_text:
+
+        values = {}
+
+        try:
+
+            for item in user_reply.split(","):
+
+                key, value = item.split("=")
+
+                values[key.strip()] = value.strip()
+
+            state_update.update(values)
+
+        except Exception:
+
+            print("\nInvalid input format.")
+            print(
+                "\nExpected format examples:\n"
+                "CSR:\n"
+                "customer_name=John, "
+                "address=Bangalore, "
+                "geo=India, "
+                "device_type=Laptop\n\n"
+                "ONSITE:\n"
+                "customer_name=John, "
+                "address=Bangalore, "
+                "contact_number=9876543210, "
+                "issue_type=Hardware Failure"
+            )
+
+            continue
+
+    # -------------------------------------------------
+    # ISSUE SEVERITY
+    # -------------------------------------------------
+
+    elif "issue severity" in interrupt_text:
+
+        state_update["issue_severity"] = (
+            user_reply.strip().lower()
+        )
+
+    # -------------------------------------------------
+    # DELIVERY INSTRUCTIONS
+    # -------------------------------------------------
+
+    elif "delivery/entry instructions" in interrupt_text:
+
+        state_update["delivery_instructions"] = (
+            user_reply.strip()
+        )
+
+    # -------------------------------------------------
+    # CONFIRMATIONS
+    # IMPORTANT:
+    # KEEP BEFORE PART SELECTION CHECK
+    # -------------------------------------------------
+
+    elif "confirm" in interrupt_text:
+
+        state_update["confirmation"] = (
+            user_reply.strip().lower()
+        )
+
+    # -------------------------------------------------
+    # CSR PART SELECTION
+    # -------------------------------------------------
+
+    elif (
+        "suggested part details" in interrupt_text
+        or "part_number=" in interrupt_text
+        or "invalid format" in interrupt_text
+    ):
+
+        state_update["user_response"] = (
+            user_reply.strip()
+        )
+
+    # -------------------------------------------------
+    # FALLBACK
+    # -------------------------------------------------
+
     else:
-        state_update["confirmation"] = user_input
 
-    # Resume workflow — MemorySaver automatically uses the same thread_id
+        state_update["user_response"] = (
+            user_reply.strip()
+        )
+
+    # -------------------------------------------------
+    # RESUME GRAPH
+    # -------------------------------------------------
+
     result = graph.invoke(
         state_update,
         config=config
     )
-    
-# --- Step 3: Final workflow result ---
-print(pretty_print_result(result))
-# print(result)
+
+
+# -------------------------------------------------
+# FINAL RESULT
+# -------------------------------------------------
+
+print("\nFINAL RESULT")
+print("=" * 50)
+
+messages = result.get("messages", [])
+
+seen = set()
+
+for msg in messages:
+
+    msg_text = str(msg)
+
+    # Avoid duplicate router messages
+    if msg_text in seen:
+        continue
+
+    seen.add(msg_text)
+
+    print(f"- {msg_text}")
+
+print("=" * 50)

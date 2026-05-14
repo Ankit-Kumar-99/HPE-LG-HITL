@@ -1,72 +1,164 @@
-from langgraph.graph import StateGraph
-from langgraph.types import interrupt
+from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+
 from state.state import OrderState
-from graph.tools.place_order import place_order_graph
-from graph.tools.track_order import track_order_graph
-from graph.tools.cancel_order import cancel_order_graph
+
 from llm.groq import get_llm
 
-from graph.tools_llm.lc_tools import place_order, track_order, cancel_order
+from tools.router_tools import (
+    csr_flow,
+    onsite_flow,
+    track_status
+)
+
+from graph.csr_flow import csr_flow_graph
+from graph.onsite_flow import onsite_graph
+from graph.track_status import track_status_graph
+
+
+# -------------------------------------------------
+# INITIALIZE LLM
+# -------------------------------------------------
 
 llm = get_llm()
 
+
+# -------------------------------------------------
+# BIND TOOLS
+# -------------------------------------------------
+
 llm_with_tools = llm.bind_tools([
-    place_order,
-    track_order,
-    cancel_order
+    csr_flow,
+    onsite_flow,
+    track_status
 ])
 
+
+# -------------------------------------------------
+# ROUTER NODE
+# -------------------------------------------------
+
 def tool_select(state: OrderState):
-    response = llm_with_tools.invoke(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You are an AI router.\n"
-                    "You MUST select exactly ONE tool.\n"
-                    "Do NOT respond with text.\n"
-                    "Always call a tool."
-                )
-            },
-            {
-                "role": "user",
-                "content": state["input"]
-            }
-        ]
-    )
+
+    user_input = state["input"]
+
+    response = llm_with_tools.invoke([
+        {
+            "role": "system",
+            "content": (
+                "You are a support workflow router. "
+                "Always call the correct tool."
+            )
+        },
+        {
+            "role": "user",
+            "content": user_input
+        }
+    ])
+
+    # -------------------------------------------------
+    # SAFETY CHECK
+    # -------------------------------------------------
 
     if not response.tool_calls:
-        raise RuntimeError("❌ LLM failed to select a tool")
+
+        return {
+            "selected_tool": "track_status",
+            "messages": [
+                "No tool selected by LLM. "
+                "Defaulting to track_status."
+            ]
+        }
 
     tool_call = response.tool_calls[0]
 
     return {
         "selected_tool": tool_call["name"],
-        "tool_args": tool_call["args"]
+        "tool_args": tool_call.get("args", {}),
+        "messages": [
+            f"Router selected: {tool_call['name']}"
+        ]
     }
 
 
-#Build the graph
+# -------------------------------------------------
+# BUILD ROOT GRAPH
+# -------------------------------------------------
+
 builder = StateGraph(OrderState)
 
-builder.add_node("start", tool_select)
-builder.add_node("place_order", place_order_graph)
-builder.add_node("track_order", track_order_graph)
-builder.add_node("cancel_order", cancel_order_graph)
 
-# Conditional edges from router → tool nodes
+# -------------------------------------------------
+# ADD NODES
+# -------------------------------------------------
+
+builder.add_node(
+    "start",
+    tool_select
+)
+
+builder.add_node(
+    "csr_flow",
+    csr_flow_graph
+)
+
+builder.add_node(
+    "onsite_flow",
+    onsite_graph
+)
+
+builder.add_node(
+    "track_status",
+    track_status_graph
+)
+
+
+# -------------------------------------------------
+# ENTRY POINT
+# -------------------------------------------------
+
+builder.set_entry_point("start")
+
+
+# -------------------------------------------------
+# CONDITIONAL ROUTING
+# -------------------------------------------------
+
 builder.add_conditional_edges(
     "start",
     lambda s: s["selected_tool"],
     {
-        "place_order": "place_order",
-        "track_order": "track_order",
-        "cancel_order": "cancel_order",
+        "csr_flow": "csr_flow",
+        "onsite_flow": "onsite_flow",
+        "track_status": "track_status"
     }
 )
 
-builder.set_entry_point("start")
 
-# Compile the graph
-graph = builder.compile(checkpointer=MemorySaver())
+# -------------------------------------------------
+# FINAL EDGES
+# -------------------------------------------------
+
+builder.add_edge(
+    "csr_flow",
+    END
+)
+
+builder.add_edge(
+    "onsite_flow",
+    END
+)
+
+builder.add_edge(
+    "track_status",
+    END
+)
+
+
+# -------------------------------------------------
+# COMPILE GRAPH
+# -------------------------------------------------
+
+graph = builder.compile(
+    checkpointer=MemorySaver()
+)

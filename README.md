@@ -128,7 +128,7 @@ python -m app.main
 
 The orchestrator decides which workflow to execute.
 
-## Supported Router Tools
+## Supported Router Tools(tested examples)
 
 ### CSR Tool
 
@@ -671,21 +671,7 @@ yes
 
 ---
 
-# Future Improvements
 
-* Real inventory APIs
-* Real geo validation APIs
-* Database persistence
-* Authentication
-* Multi-agent architecture
-* Retry workflows
-* SLA calculations
-* Ticket creation
-* Email/SMS notifications
-* UI dashboard
-* LangSmith tracing
-
----
 
 # Key Concepts Demonstrated
 
